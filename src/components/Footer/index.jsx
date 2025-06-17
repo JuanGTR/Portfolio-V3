@@ -8,10 +8,8 @@ import { useInView } from "react-intersection-observer"
 import Button from "../Button"
 import Time from "../Time"
 
-// emailjs
 import emailjs from "@emailjs/browser"
 
-// JSON
 import emailjsconfig from "../../constants/emailjs.json"
 import Alert from "../Alert"
 
@@ -21,18 +19,24 @@ export default function Footer() {
   const [isSending, setIsSending] = useState(false)
   const [sendStatus, setSendStatus] = useState({ processed: false, message: "", variant: "success" })
   const [hasAnimated, setHasAnimated] = useState(false)
+
+  const [formData, setFormData] = useState({
+    user_name: '', // Initialized with new keys
+    user_email: '', // Initialized with new keys
+    message: '',
+  });
+
   const [fieldValues, setFieldValues] = useState({
-    name: false,
-    email: false,
+    user_name: false, // Initialized with new keys
+    user_email: false, // Initialized with new keys
     message: false,
-  })
+  });
 
   const handleComplete = () => {
     setHasAnimated(true)
   }
 
   useEffect(() => {
-    // Start animation when the component is in view
     if (inView && !hasAnimated) {
       controls.start("visible")
     }
@@ -56,14 +60,14 @@ export default function Footer() {
       type: "text",
       id: "name",
       placeholder: "Enter name",
-      stateKey: "name",
+      stateKey: "user_name", // THIS WAS CHANGED
     },
     {
       label: "Email",
       type: "email",
       id: "email",
       placeholder: "hello@mail.com",
-      stateKey: "email",
+      stateKey: "user_email", // THIS WAS CHANGED
     },
     {
       label: "Message",
@@ -76,12 +80,17 @@ export default function Footer() {
     },
   ]
 
-  const handleInputClick = (stateKey) => {
-    setFieldValues({
-      ...fieldValues,
-      [stateKey]: true,
-    })
-  }
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prevFormData => ({
+      ...prevFormData,
+      [name]: value,
+    }));
+    setFieldValues(prevFieldValues => ({
+        ...prevFieldValues,
+        [name]: true
+    }));
+  };
 
   const timeoutAlert = () =>
     setTimeout(() => {
@@ -89,8 +98,9 @@ export default function Footer() {
     }, 5000)
 
   const sendEmail = async () => {
-    const requiredFields = ["name", "email", "message"]
-    const missingFields = requiredFields.filter((field) => !fieldValues[field])
+    // *** IMPORTANT CHANGE HERE: Update requiredFields to match new stateKeys ***
+    const requiredFields = ["user_name", "user_email", "message"]
+    const missingFields = requiredFields.filter((field) => !formData[field])
 
     if (missingFields.length > 0) {
       setSendStatus({ processed: true, variant: "error", message: "Not all fields were filled" })
@@ -99,8 +109,10 @@ export default function Footer() {
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(fieldValues.email)) {
+    // *** IMPORTANT CHANGE HERE: Use formData.user_email for validation ***
+    if (!emailRegex.test(formData.user_email)) {
       setSendStatus({ processed: true, variant: "error", message: "Invalid email" })
+      timeoutAlert()
       return
     }
 
@@ -108,19 +120,33 @@ export default function Footer() {
     try {
       const { serviceId, templateid, publicKey } = emailjsconfig
 
-      console.log("trigger")
+      console.log("Sending email with:", {
+        serviceId,
+        templateid,
+        publicKey,
+        templateParams: formData
+      });
 
-      const templateParams = {
-        name: fieldValues.name,
-        email: fieldValues.email,
-        message: fieldValues.message,
-      }
-
-      const response = await emailjs.send(serviceId, templateid, templateParams, publicKey)
+      // formData now correctly contains user_name, user_email, and message
+      const response = await emailjs.send(serviceId, templateid, formData, publicKey)
 
       console.log("Email sent successfully:", response)
       setIsSending(false)
       setSendStatus({ processed: true, variant: "success", message: "Success!" })
+      
+      // Reset form data after successful send
+      setFormData({
+        user_name: '',
+        user_email: '',
+        message: '',
+      });
+      // Reset fieldValues for animation (if applicable)
+      setFieldValues({
+        user_name: false,
+        user_email: false,
+        message: false,
+      });
+
     } catch (error) {
       console.error("Error sending email:", error)
       setIsSending(false)
@@ -144,7 +170,29 @@ export default function Footer() {
           {inputFields.map((field, index) => (
             <motion.div key={index} initial="hidden" animate={controls} variants={opacityVariant} transition={{ duration: 1, delay: 0.5 * (index + 1) }} className="input--div">
               <label htmlFor={field.id}>{field.label}</label>
-              {field.type === "textarea" ? <textarea name={field.id} id={field.id} placeholder={field.placeholder} rows={field.rows} wrap={field.wrap} onClick={() => handleInputClick(field.stateKey)}></textarea> : <input type={field.type} name={field.id} id={field.id} placeholder={field.placeholder} onClick={() => handleInputClick(field.stateKey)} />}
+              {field.type === "textarea" ?
+                <textarea
+                  name={field.stateKey}
+                  id={field.id}
+                  placeholder={field.placeholder}
+                  rows={field.rows}
+                  wrap={field.wrap}
+                  value={formData[field.stateKey]}
+                  onChange={handleChange}
+                  onFocus={() => setFieldValues(prev => ({...prev, [field.stateKey]: true}))}
+                  onBlur={() => setFieldValues(prev => ({...prev, [field.stateKey]: false}))}
+                ></textarea> :
+                <input
+                  type={field.type}
+                  name={field.stateKey}
+                  id={field.id}
+                  placeholder={field.placeholder}
+                  value={formData[field.stateKey]}
+                  onChange={handleChange}
+                  onFocus={() => setFieldValues(prev => ({...prev, [field.stateKey]: true}))}
+                  onBlur={() => setFieldValues(prev => ({...prev, [field.stateKey]: false}))}
+                />
+              }
               <motion.div
                 initial="hidden"
                 animate={controls}
